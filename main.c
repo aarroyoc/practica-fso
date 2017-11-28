@@ -3,6 +3,9 @@
 #include <time.h>
 #include <pthread.h>
 #include <semaphore.h>
+#include <string.h>
+
+
 
 char** buffer1;
 
@@ -14,14 +17,27 @@ int random_n(int max){
 	return r;
 }
 
+int palindromo (char *palabra) {
+	int esPalindromo = 1;
+	int i,j;
+
+	j = strlen (palabra)-1;
+	for (i=0; i<strlen(palabra)/2 && esPalindromo; i++, j--){
+		if (*(palabra+i)!=*(palabra+j)){
+			esPalindromo = 0;
+		}
+	}
+	return esPalindromo;
+}
+
 void* productor(void* z)
 {
 	int* x = (int*) z;
 	int tamBuffer = (int) *x;
 	for(int i=0;i<75;i++){
+		int n = random_n(999);
 		sem_wait(&sem_prod);
-		buffer1[i%tamBuffer] = (char*)malloc(4*sizeof(char));
-		sprintf(buffer1[i%tamBuffer],"%d",random_n(999));
+		sprintf(buffer1[i%tamBuffer],"%d",n);
 		sem_post(&sem_con);
 	}
 	pthread_exit(NULL);
@@ -33,6 +49,9 @@ void* consumidor(void* z)
 	int tamBuffer = *x;
 	for(int i=0;i<75;i++){
 		sem_wait(&sem_con);
+		if(palindromo(buffer1[i%tamBuffer]) == 1){
+			printf("%s es palindromo\n",buffer1[i%tamBuffer]);
+		}
 		printf("%s\n",buffer1[i%tamBuffer]);
 		sem_post(&sem_prod);
 	}
@@ -54,6 +73,9 @@ int main(int argc, char** argv)
 	}
 	char* ficheroSalida = argv[2];
 	buffer1 = (char**)malloc(tamBuffer*sizeof(char*));
+	for(int i=0;i<tamBuffer;i++){
+		buffer1[i] = (char*) malloc(4*sizeof(char));
+	}
 	pthread_t prod;
 	pthread_t consum;
 
@@ -65,6 +87,11 @@ int main(int argc, char** argv)
 
 	pthread_join(consum,NULL);
 	pthread_join(prod,NULL);	
+
+	for(int i=0;i<tamBuffer;i++){
+		free(buffer1[i]);
+	}
+	free(buffer1);
 
 	return 0;
 }
