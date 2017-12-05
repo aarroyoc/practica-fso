@@ -54,7 +54,6 @@ void* consumidor(void* z)
 		sem_wait(&sem_con);
 		sem_wait(&sem_hayhuecob2);
 		if(palindromo(buffer1[i%tamBuffer]) == 1){
-			printf("%s es palindromo\n",buffer1[i%tamBuffer]);
 			sprintf(buffer2[j%5],"El numero %s es palindromo\n",buffer1[i%tamBuffer]);
 			j++;
 			sem_post(&sem_haydatob2);
@@ -64,23 +63,20 @@ void* consumidor(void* z)
 			j++;
 			sem_post(&sem_haydatob2);
 		}
-		
-		printf("%s\n",buffer1[i%tamBuffer]);
-		
 		sem_post(&sem_prod);
 	}
 	pthread_exit(NULL);
 }
 
 void* consumidor_final(void* z)
-{	for (int i=0; i<75; i++){
+{	
+	FILE* file = (FILE*)z;
+	for (int i=0; i<75; i++){
 		sem_wait(&sem_haydatob2);
-		
-		
+		fprintf(file,"%s",buffer2[i%5]);
 		sem_post(&sem_hayhuecob2);
-
-		}
-	
+	}
+	fclose(file);
 	
 	pthread_exit(NULL);
 }
@@ -99,6 +95,12 @@ int main(int argc, char** argv)
 		return -2;
 	}
 	char* ficheroSalida = argv[2];
+	
+	FILE* file = fopen(ficheroSalida,"w");
+	if(file == NULL){
+		fprintf(stderr,"Imposible abrir fichero en modo escritura\n");
+	}
+
 	buffer1 = (char**)malloc(tamBuffer*sizeof(char*));
 	for(int i=0;i<tamBuffer;i++){
 		buffer1[i] = (char*) malloc(4*sizeof(char));
@@ -118,7 +120,7 @@ int main(int argc, char** argv)
 
 	pthread_create(&prod,NULL,productor,(void*)&tamBuffer);
 	pthread_create(&consum,NULL,consumidor,(void*)&tamBuffer);
-	pthread_create(&consum_final,NULL,consumidor_final,(void*)NULL);
+	pthread_create(&consum_final,NULL,consumidor_final,(void*)file);
 
 	pthread_join(consum_final,NULL);
 	pthread_join(consum,NULL);
@@ -128,6 +130,11 @@ int main(int argc, char** argv)
 		free(buffer1[i]);
 	}
 	free(buffer1);
+
+	for(int i=0;i<5;i++){
+		free(buffer2[i]);
+	}
+	free(buffer2);
 
 	return 0;
 }
