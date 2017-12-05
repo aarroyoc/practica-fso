@@ -8,9 +8,12 @@
 
 
 char** buffer1;
+char** buffer2;
 
 sem_t sem_prod;
 sem_t sem_con;
+sem_t sem_hayhuecob2;
+sem_t sem_haydatob2;
 
 int random_n(int max){
 	int r = rand() % (max+1);
@@ -44,22 +47,40 @@ void* productor(void* z)
 }
 
 void* consumidor(void* z)
-{
+{	int j=0;
 	int* x = (int*) z;
 	int tamBuffer = *x;
 	for(int i=0;i<75;i++){
 		sem_wait(&sem_con);
+		sem_wait(&sem_hayhuecob2);
 		if(palindromo(buffer1[i%tamBuffer]) == 1){
 			printf("%s es palindromo\n",buffer1[i%tamBuffer]);
+			sprintf(buffer2[j%5],"El numero %s es palindromo\n",buffer1[i%tamBuffer]);
+			j++;
+			sem_post(&sem_haydatob2);
+			}	
+		else{
+			sprintf(buffer2[j%5],"El numero %s no es palindromo\n",buffer1[i%tamBuffer]);
+			j++;
+			sem_post(&sem_haydatob2);
 		}
+		
 		printf("%s\n",buffer1[i%tamBuffer]);
+		
 		sem_post(&sem_prod);
 	}
 	pthread_exit(NULL);
 }
 
 void* consumidor_final(void* z)
-{
+{	for (int i=0; i<75; i++){
+		sem_wait(&sem_haydatob2);
+		
+		
+		sem_post(&sem_hayhuecob2);
+
+		}
+	
 	
 	pthread_exit(NULL);
 }
@@ -82,13 +103,19 @@ int main(int argc, char** argv)
 	for(int i=0;i<tamBuffer;i++){
 		buffer1[i] = (char*) malloc(4*sizeof(char));
 	}
+	buffer2 = (char**)malloc(5*sizeof(char*));
+	for (int i=0;i<5;i++){
+		buffer2[i] = (char*) malloc(120*sizeof(char*));
+	}
 	pthread_t prod;
 	pthread_t consum;
 	pthread_t consum_final;
 
 	sem_init(&sem_prod,0,tamBuffer);
 	sem_init(&sem_con,0,0);
-	
+	sem_init(&sem_haydatob2,0,0);
+	sem_init(&sem_hayhuecob2,0,5);
+
 	pthread_create(&prod,NULL,productor,(void*)&tamBuffer);
 	pthread_create(&consum,NULL,consumidor,(void*)&tamBuffer);
 	pthread_create(&consum_final,NULL,consumidor_final,(void*)NULL);
