@@ -58,6 +58,12 @@ void* consumidor(void* z)
 	pthread_exit(NULL);
 }
 
+void* consumidor_final(void* z)
+{
+	
+	pthread_exit(NULL);
+}
+
 int main(int argc, char** argv)
 {
 	srand(time(NULL));
@@ -78,13 +84,16 @@ int main(int argc, char** argv)
 	}
 	pthread_t prod;
 	pthread_t consum;
+	pthread_t consum_final;
 
 	sem_init(&sem_prod,0,tamBuffer);
 	sem_init(&sem_con,0,0);
 	
 	pthread_create(&prod,NULL,productor,(void*)&tamBuffer);
 	pthread_create(&consum,NULL,consumidor,(void*)&tamBuffer);
+	pthread_create(&consum_final,NULL,consumidor_final,(void*)NULL);
 
+	pthread_join(consum_final,NULL);
 	pthread_join(consum,NULL);
 	pthread_join(prod,NULL);	
 
