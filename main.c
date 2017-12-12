@@ -1,3 +1,5 @@
+/* Arroyo Calle, Adrian - 71178253S */
+/* Martinez Alonso, Eloy Antonio - 71173798E */
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
@@ -14,6 +16,8 @@ sem_t sem_prod;
 sem_t sem_con;
 sem_t sem_hayhuecob2;
 sem_t sem_haydatob2;
+sem_t mutex_procesados;
+int procesados;
 
 int random_n(int max){
 	int r = rand() % (max+1);
@@ -47,20 +51,29 @@ void* productor(void* z)
 }
 
 void* consumidor(void* z)
-{	int j=0;
+{
 	int* x = (int*) z;
 	int tamBuffer = *x;
-	for(int i=0;i<75;i++){
+	while(1){
+		sem_wait(&mutex_procesados);
+		int i = procesados;
+		if(procesados >= 75){
+			sem_post(&mutex_procesados);
+			pthread_exit(NULL);
+		}else{
+			procesados++;
+			sem_post(&mutex_procesados);
+		}
+
 		sem_wait(&sem_con);
 		sem_wait(&sem_hayhuecob2);
+
 		if(palindromo(buffer1[i%tamBuffer]) == 1){
-			sprintf(buffer2[j%5],"El numero %s es palindromo\n",buffer1[i%tamBuffer]);
-			j++;
+			sprintf(buffer2[i%5],"El numero %s es palindromo\n",buffer1[i%tamBuffer]);
 			sem_post(&sem_haydatob2);
 			}	
 		else{
-			sprintf(buffer2[j%5],"El numero %s no es palindromo\n",buffer1[i%tamBuffer]);
-			j++;
+			sprintf(buffer2[i%5],"El numero %s no es palindromo\n",buffer1[i%tamBuffer]);
 			sem_post(&sem_haydatob2);
 		}
 		sem_post(&sem_prod);
@@ -83,19 +96,24 @@ void* consumidor_final(void* z)
 
 int main(int argc, char** argv)
 {
+	procesados = 0;
 	srand(time(NULL));
-	printf("PRACTICA FSO\n");
-	if(argc != 3){
+	if(argc != 4){
 		fprintf(stderr,"Numero de argumentos incorrectos\n");
 		return -1;
 	}
 	int tamBuffer = atoi(argv[1]);
-	if(tamBuffer == 0){
+	if(tamBuffer <= 0){
 		fprintf(stderr,"Especifica un numero de tamano de buffer correcto\n");
 		return -2;
 	}
 	char* ficheroSalida = argv[2];
-	
+
+	int num_P = atoi(argv[3]);
+	if(num_P <= 0){
+		fprintf(stderr,"\n");
+		return -3;
+	}
 	FILE* file = fopen(ficheroSalida,"w");
 	if(file == NULL){
 		fprintf(stderr,"Imposible abrir fichero en modo escritura\n");
@@ -110,20 +128,27 @@ int main(int argc, char** argv)
 		buffer2[i] = (char*) malloc(120*sizeof(char*));
 	}
 	pthread_t prod;
-	pthread_t consum;
+	pthread_t* consum;
 	pthread_t consum_final;
 
 	sem_init(&sem_prod,0,tamBuffer);
 	sem_init(&sem_con,0,0);
 	sem_init(&sem_haydatob2,0,0);
 	sem_init(&sem_hayhuecob2,0,5);
+	sem_init(&mutex_procesados,0,1);
+
+	consum = (pthread_t)malloc(num_P*sizeof(pthread_t));
 
 	pthread_create(&prod,NULL,productor,(void*)&tamBuffer);
-	pthread_create(&consum,NULL,consumidor,(void*)&tamBuffer);
+	for(int i=0;i<num_P;i++){
+		pthread_create(&consum[i],NULL,consumidor,(void*)&tamBuffer);
+	}
 	pthread_create(&consum_final,NULL,consumidor_final,(void*)file);
 
 	pthread_join(consum_final,NULL);
-	pthread_join(consum,NULL);
+	for(int i=0;i<num_P;i++){
+		pthread_join(consum[i],NULL);
+	}
 	pthread_join(prod,NULL);	
 
 	for(int i=0;i<tamBuffer;i++){
