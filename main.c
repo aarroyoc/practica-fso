@@ -1,5 +1,6 @@
 /* Arroyo Calle, Adrian - 71178253S */
 /* Martinez Alonso, Eloy Antonio - 71173798E */
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <time.h>
@@ -12,12 +13,14 @@
 char** buffer1;
 char** buffer2;
 
-sem_t sem_prod;
-sem_t sem_con;
+sem_t sem_hayhuecob1;
+sem_t sem_haydatob1;
 sem_t sem_hayhuecob2;
 sem_t sem_haydatob2;
 sem_t mutex_procesados;
+sem_t mutex_impresos;
 int procesados;
+int impresos;
 
 int random_n(int max){
 	int r = rand() % (max+1);
@@ -43,9 +46,9 @@ void* productor(void* z)
 	int tamBuffer = (int) *x;
 	for(int i=0;i<75;i++){
 		int n = random_n(999);
-		sem_wait(&sem_prod);
+		sem_wait(&sem_hayhuecob1);
 		sprintf(buffer1[i%tamBuffer],"%d",n);
-		sem_post(&sem_con);
+		sem_post(&sem_haydatob1);
 	}
 	pthread_exit(NULL);
 }
@@ -56,27 +59,30 @@ void* consumidor(void* z)
 	int tamBuffer = *x;
 	while(1){
 		sem_wait(&mutex_procesados);
-		int i = procesados;
 		if(procesados >= 75){
 			sem_post(&mutex_procesados);
 			pthread_exit(NULL);
-		}else{
-			procesados++;
-			sem_post(&mutex_procesados);
 		}
+		sem_wait(&sem_haydatob1);
+		int i = procesados;
+		procesados++;
+		sem_post(&mutex_procesados);
 
-		sem_wait(&sem_con);
-		sem_wait(&sem_hayhuecob2);
-
+		char tmp[120];
 		if(palindromo(buffer1[i%tamBuffer]) == 1){
-			sprintf(buffer2[i%5],"El numero %s es palindromo\n",buffer1[i%tamBuffer]);
-			sem_post(&sem_haydatob2);
-			}	
-		else{
-			sprintf(buffer2[i%5],"El numero %s no es palindromo\n",buffer1[i%tamBuffer]);
-			sem_post(&sem_haydatob2);
+			sprintf(tmp,"El numero %s es palindromo\n",buffer1[i%tamBuffer]);
+		}else{
+			sprintf(tmp,"El numero %s NO es palindromo\n",buffer1[i%tamBuffer]);
 		}
-		sem_post(&sem_prod);
+		sem_post(&sem_hayhuecob1);
+
+		sem_wait(&mutex_impresos);
+		sem_wait(&sem_hayhuecob2);
+		strcpy(buffer2[impresos%5],tmp);
+		impresos++;
+		sem_post(&sem_haydatob2);
+		sem_post(&mutex_impresos);
+
 	}
 	pthread_exit(NULL);
 }
@@ -97,6 +103,7 @@ void* consumidor_final(void* z)
 int main(int argc, char** argv)
 {
 	procesados = 0;
+	impresos = 0;
 	srand(time(NULL));
 	if(argc != 4){
 		fprintf(stderr,"Numero de argumentos incorrectos\n");
@@ -111,33 +118,55 @@ int main(int argc, char** argv)
 
 	int num_P = atoi(argv[3]);
 	if(num_P <= 0){
-		fprintf(stderr,"\n");
+		fprintf(stderr,"Numero de hilos incorrecto\n");
 		return -3;
 	}
 	FILE* file = fopen(ficheroSalida,"w");
 	if(file == NULL){
 		fprintf(stderr,"Imposible abrir fichero en modo escritura\n");
+		return -4;
 	}
 
 	buffer1 = (char**)malloc(tamBuffer*sizeof(char*));
+	if(buffer1 == NULL){
+		fprintf(stderr,"Error en la reserva de memoria\n");
+		return -5;
+	}
 	for(int i=0;i<tamBuffer;i++){
 		buffer1[i] = (char*) malloc(4*sizeof(char));
+		if(buffer1[i] == NULL){
+			fprintf(stderr,"Error en la reserva de memoria\n");
+			return -5;
+		}
 	}
 	buffer2 = (char**)malloc(5*sizeof(char*));
+	if(buffer2 == NULL){
+		fprintf(stderr,"Error en la reserva de memoria\n");
+		return -5;
+	}
 	for (int i=0;i<5;i++){
 		buffer2[i] = (char*) malloc(120*sizeof(char*));
+		if(buffer2[i] == NULL){
+			fprintf(stderr,"Error en la reserva de memoria\n");
+			return -5;
+		}
 	}
 	pthread_t prod;
 	pthread_t* consum;
 	pthread_t consum_final;
 
-	sem_init(&sem_prod,0,tamBuffer);
-	sem_init(&sem_con,0,0);
+	sem_init(&sem_hayhuecob1,0,tamBuffer);
+	sem_init(&sem_haydatob1,0,0);
 	sem_init(&sem_haydatob2,0,0);
 	sem_init(&sem_hayhuecob2,0,5);
 	sem_init(&mutex_procesados,0,1);
+	sem_init(&mutex_impresos,0,1);
 
-	consum = (pthread_t)malloc(num_P*sizeof(pthread_t));
+	consum = (pthread_t*)malloc(num_P*sizeof(pthread_t));
+	if(consum == NULL){
+		fprintf(stderr,"Error en la reserva de memoria\n");
+		return -5;
+	}
 
 	pthread_create(&prod,NULL,productor,(void*)&tamBuffer);
 	for(int i=0;i<num_P;i++){
@@ -150,6 +179,8 @@ int main(int argc, char** argv)
 		pthread_join(consum[i],NULL);
 	}
 	pthread_join(prod,NULL);	
+
+	free(consum);
 
 	for(int i=0;i<tamBuffer;i++){
 		free(buffer1[i]);
