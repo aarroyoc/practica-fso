@@ -8,10 +8,12 @@
 #include <semaphore.h>
 #include <string.h>
 
-
+/* BUFFERS */
 
 char** buffer1;
 char** buffer2;
+
+/* SEMAFOROS */
 
 sem_t sem_hayhuecob1;
 sem_t sem_haydatob1;
@@ -19,13 +21,18 @@ sem_t sem_hayhuecob2;
 sem_t sem_haydatob2;
 sem_t mutex_procesados;
 sem_t mutex_impresos;
+
 int procesados;
 int impresos;
+
+/* Genera un numero aleatorio entre 0 y max */
 
 int random_n(int max){
 	int r = rand() % (max+1);
 	return r;
 }
+
+/* Comprueba si un numero es palindromo (1) o no (0) */
 
 int palindromo (char *palabra) {
 	int esPalindromo = 1;
@@ -40,6 +47,8 @@ int palindromo (char *palabra) {
 	return esPalindromo;
 }
 
+/* Hilo productor inicial */
+
 void* productor(void* z)
 {
 	int* x = (int*) z;
@@ -53,11 +62,14 @@ void* productor(void* z)
 	pthread_exit(NULL);
 }
 
+/* Hilo(s) consumidores intermedios */
+
 void* consumidor(void* z)
 {
 	int* x = (int*) z;
 	int tamBuffer = *x;
 	while(1){
+		/* Leer dato del buffer 1 y procesar */
 		sem_wait(&mutex_procesados);
 		if(procesados >= 75){
 			sem_post(&mutex_procesados);
@@ -76,6 +88,7 @@ void* consumidor(void* z)
 		}
 		sem_post(&sem_hayhuecob1);
 
+		/* Escribir en buffer 2 */
 		sem_wait(&mutex_impresos);
 		sem_wait(&sem_hayhuecob2);
 		strcpy(buffer2[impresos%5],tmp);
@@ -86,6 +99,8 @@ void* consumidor(void* z)
 	}
 	pthread_exit(NULL);
 }
+
+/* Hilo consumidor final. z es un puntero al archivo donde se guardan los datos */
 
 void* consumidor_final(void* z)
 {	
@@ -102,9 +117,13 @@ void* consumidor_final(void* z)
 
 int main(int argc, char** argv)
 {
+	/* Iniciar variables */
 	procesados = 0;
 	impresos = 0;
 	srand(time(NULL));
+
+	/* Comprobacion de los argumentos */
+
 	if(argc != 4){
 		fprintf(stderr,"Numero de argumentos incorrectos\n");
 		return -1;
@@ -126,6 +145,8 @@ int main(int argc, char** argv)
 		fprintf(stderr,"Imposible abrir fichero en modo escritura\n");
 		return -4;
 	}
+
+	/* reservar memoria para los bufferes */
 
 	buffer1 = (char**)malloc(tamBuffer*sizeof(char*));
 	if(buffer1 == NULL){
@@ -155,6 +176,7 @@ int main(int argc, char** argv)
 	pthread_t* consum;
 	pthread_t consum_final;
 
+	/* Inicializar semaforos */
 	sem_init(&sem_hayhuecob1,0,tamBuffer);
 	sem_init(&sem_haydatob1,0,0);
 	sem_init(&sem_haydatob2,0,0);
@@ -168,6 +190,8 @@ int main(int argc, char** argv)
 		return -5;
 	}
 
+	/* Lanzar hilos */
+
 	pthread_create(&prod,NULL,productor,(void*)&tamBuffer);
 	for(int i=0;i<num_P;i++){
 		pthread_create(&consum[i],NULL,consumidor,(void*)&tamBuffer);
@@ -179,6 +203,8 @@ int main(int argc, char** argv)
 		pthread_join(consum[i],NULL);
 	}
 	pthread_join(prod,NULL);	
+
+	/* Liberar recursos */
 
 	free(consum);
 
